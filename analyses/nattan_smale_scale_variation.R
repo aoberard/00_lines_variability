@@ -17,6 +17,7 @@ strate <- readxl::read_excel(here::here("data", "raw-data", "20250411_strates_fl
 splist <- readxl::read_excel(here::here("data", "raw-data", "20250411_species_list_flora_bocage_2023.xlsx"))
 
 
+
 # Nattan's bocage small-scale data ----
 
 ## Trapping lines small-scale variables PCA ----
@@ -452,6 +453,12 @@ quadrat_summed_rich_all$stand <- as.character(quadrat_summed_rich_all$stand)
 lines_variability_results <- lines_variability_results %>%
   left_join(quadrat_summed_rich_all,
             by = c("num" = "stand"))
+
+
+# Write file ----
+data.table::fwrite(lines_variability_results, here::here("data", "derived-data", "20250414_lines_variability.csv") )
+
+
 
 
 # Links between multivariate axis ----
