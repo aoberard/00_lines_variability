@@ -91,16 +91,6 @@ factoextra::fviz_pca_ind(PCA_lines_local,
                          ggtheme = ggplot2::theme_minimal())
 
 
-#Extract PCA coordinates values in a new dataframe used to extract multivariate axis results
-multivariate_results <- lines_local_data %>%
-  tibble::rownames_to_column(var = "num") %>%
-  left_join(
-    data.frame(PCA_lines_local_axis1 = PCA_lines_local$ind$coord[,1],
-               PCA_lines_local_axis2 = PCA_lines_local$ind$coord[,2], 
-               line = as.character(rownames(PCA_lines_local$ind$coord))),
-    by = c("num" = "line"))
-
-
 ## Test LDA : what variables (used in PCA) segregates the best our a priori groups -----
 LDA <- MASS::lda(lines_local_data[, var_pca], lines_local_data$category)
 
@@ -195,8 +185,6 @@ quadrat_summed_rich_all <- quadrat_summed_sp %>%
   left_join(quadrat_summed_rich_type_wide)
 
 
-### Multivariate exploration ----
-
 #Pivot species only (no plant type) dataframe for use in multivariate analysis
 commu_quadrat_summed <- quadrat_summed_sp %>%
   select(!species) %>%
@@ -255,13 +243,6 @@ factoextra::fviz_pca_ind(PCA_plant_species,
                          ggtheme = ggplot2::theme_minimal())
 
 
-#Extract PCA coordinates values and add to multivariate dataframe
-multivariate_results <- multivariate_results %>%
-  left_join(
-    data.frame(PCA_plant_species_axis1 = PCA_plant_species$ind$coord[,1],
-               PCA_plant_species_axis2 = PCA_plant_species$ind$coord[,2], 
-               line = as.character(rownames(PCA_plant_species$ind$coord))),
-    by = c("num" = "line"))
 
 
 
@@ -292,8 +273,6 @@ nmdspoint %>%
 
 
 ## Transect data : plant species presence/absence ----
-
-### Multivariate exploration ----
 
 #Generate presence/absence community data
 commu_transect <- transect %>%
@@ -345,14 +324,6 @@ factoextra::fviz_ca_row(CA_plant_species,
                          addEllipses = T,
                          ggtheme = ggplot2::theme_minimal())
 
-#Extract PCA coordinates values and add to multivariate dataframe
-multivariate_results <- multivariate_results %>%
-  left_join(
-    data.frame(CA_plant_species_axis1 = CA_plant_species$ind$coord[,1],
-               CA_plant_speciess_axis2 = CA_plant_species$ind$coord[,2], 
-               line = as.character(rownames(CA_plant_species$ind$coord))),
-    by = c("num" = "line"))
-
 
 #nMDS (Jaccard)
 nmds_jaccard <- vegan::metaMDS(
@@ -380,14 +351,9 @@ nmdspoint %>%
   theme_minimal()
 
 
-
-
-
-# ??? Analyse fonctionnelles ----
-
-
-
 ## Cover conversion script (from Nattan) ----
+#cover data are already present in line_modalities, but here is how they were calculated using flora data
+
 #prep
 strate$num <- as.character(strate$stand)
 #filter strata
@@ -446,12 +412,81 @@ strate <- strate %>% rename(shrub_cover = shrub)
 strate <- strate %>% rename(tree_cover = tree)
 
 
+## ?Analyse fonctionnelles plant species data ----
+
+
+# Extract data ----
+
+#From multivariate analysis :
+
+#Extract PCA LINES DATA coordinates  values in a new dataframe 
+lines_variability_results <- lines_local_data %>%
+  tibble::rownames_to_column(var = "num") %>%
+  left_join(
+    data.frame(PCA_lines_local_axis1 = PCA_lines_local$ind$coord[,1],
+               PCA_lines_local_axis2 = PCA_lines_local$ind$coord[,2], 
+               line = as.character(rownames(PCA_lines_local$ind$coord))),
+    by = c("num" = "line"))
+
+#Extract PCA PLANT COMMUNITY coordinates values and add to multivariate dataframe
+lines_variability_results <- lines_variability_results %>%
+  left_join(
+    data.frame(PCA_plant_species_axis1 = PCA_plant_species$ind$coord[,1],
+               PCA_plant_species_axis2 = PCA_plant_species$ind$coord[,2], 
+               line = as.character(rownames(PCA_plant_species$ind$coord))),
+    by = c("num" = "line"))
+
+#Extract CA PLANT COMMUNITY coordinates values and add to multivariate dataframe
+lines_variability_results <- lines_variability_results %>%
+  left_join(
+    data.frame(CA_plant_species_axis1 = CA_plant_species$row$coord[,1],
+               CA_plant_species_axis2 = CA_plant_species$row$coord[,2], 
+               line = as.character(rownames(CA_plant_species$row$coord))),
+    by = c("num" = "line"))
+
+
+
+#From plant species richness (quadrat data only)
+quadrat_summed_rich_all$stand <- as.character(quadrat_summed_rich_all$stand)
+
+lines_variability_results <- lines_variability_results %>%
+  left_join(quadrat_summed_rich_all,
+            by = c("num" = "stand"))
+
+
 # Links between multivariate axis ----
 
 #Correlations
+#Looking for variables correlations  
+cor_matrix <- cor(lines_variability_results[, c("PCA_lines_local_axis1",
+                                           "PCA_lines_local_axis2",
+                                           "PCA_plant_species_axis1",
+                                           "PCA_plant_species_axis2",
+                                           "CA_plant_species_axis1",
+                                           "CA_plant_species_axis2",
+                                           "plant_richness",
+                                           "tree",
+                                           "shrub",
+                                           "herbaceous")],
+                  use = "pairwise.complete.obs", method = "spearman")
+
+print(cor_matrix)
+corrplot::corrplot(cor_matrix, method = "color",
+                   type = "lower",
+                   tl.col = "black",
+                   tl.srt = 45, 
+                   diag = FALSE)
 
 
+#Using procruste and protest to compare ordinations
+common_sites <- intersect(rownames(PCA_lines_local$ind$coord),
+                          rownames(PCA_plant_species$ind$coord))
 
+mat1 <- PCA_lines_local$ind$coord[common_sites, ]
+mat2 <- PCA_plant_species$ind$coord[common_sites, ]
 
+pro <- vegan::procrustes(mat1, mat2)
+summary(pro)
+plot(pro)
 
-
+vegan::protest(mat1, mat2)
